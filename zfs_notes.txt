@@ -1,0 +1,45 @@
+zfs are pools made up ov vdevs which are made up of multiple devices/drives
+zfs create pool01 raidz d1 d2 d3 raidz d4 d5 d6
+zfs stripes data across the vdevs, vdev with the lowest redundancy for the pool is the pools redundancy
+as a result it is best to use a consistent layout for all vdevs in a pool01
+
+zfs vdevs do best when the number of devices/drives are kept in the single digits
+optimal layour for zfs redundancies:
+mirror - mirrors the number of drives assigned, 2 drives 2x redundancy, 3 drives 3x redundancy
+raidz - =raid5, ideal # of drives is 3
+raidz2 - =raid6, ideal # drives is 6
+raidz3 - 3x redundancy raid, ideal # drives is 9
+## You should keep the raidz array at a low power of two plus partity
+raidz1 - 3, 5, 9 disks
+raidz2 - 4, 6, 8, 10, 18 disks
+raidz3 - 5, 7, 11, 19 disks
+
+## the more parity bits the longer it takes to resilver an array, standard mirroring does not have the problem of creating the parity
+## so is quicker in resilvering
+
+## raidz is more like raid3 than raid5 but does use parity to protect from disk failures
+raidz/raidz1 - minimum of 3 devices (one parity disk), you can suffer a one disk loss
+raidz2         - minimum of 4 devices (two parity disks), you can suffer a two disk loss
+raidz3         - minimum of 5 devices (three parity disks) , you can suffer a three disk loss 
+
+
+you can break a mirror and make it a raidz by (with no redundancy during):
+break mirror: 
+zfs detach d2
+create a sparse file with size = other drives
+create zfs raidz with sparse file(s) as 3rd drive (or last two drives for raidz2)
+offline and remove the spare file(s) imediatly after creation
+copy data to raidz from broken mirror pool
+destory mirror and use drive(s) to replace removed sparse file
+
+you can add spares to a pool, might be the cheapest way to run safely with raidz(1), but even then you risk loosing pool if you loose another drive before resilver completes
+
+a log is fast storage (ssd) of zfs writes, as a result it should be redundant
+zfs add log mirror s1 s2
+a cache is fast read cache storage for zfs reads, does not need to be redundant
+zfs add cache s3 s4
+
+Some configurations
+zfs create pool01 raidz d1 d2 d3 raidz d4 d5 d6								75% storage efficient
+zfs create pool01 raidz2 d1 d2 d3 d7 d9 d11 raidz2 d4 d5 d6 d8 d10 d12		75% storage efficent
+zfs create pool01 mirror d1 d2 mirror d3 d6 mirror d4 d5					50% storage efficent

@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+#
+# Copyright S. Hesterberg, 2016
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 3, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING. If not, write to the
+# Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#
+# Author: Scott C. Hesterberg <scotthesterberg@users.noreply.github.com>
+
+
+#pull sensitive variables for this script from variable definition file
+source ~/variables.txt
+
+yum install -y epel-release
+yum install -y deltarpm gcc kernel-devel tar net-tools perl smartmontools hdparm atop vim curl wget ipa-client rsync screen git bash-completion
+mkdir /tmp/cdrom
+mount /dev/cdrom /tmp/cdrom
+rm -f /tmp/VMware*
+cp /tmp/cdrom/VMware* /tmp
+umount /tmp/cdrom
+cd /tmp
+tar -xzf /tmp/VMware*
+/tmp/vmware-tool*/vmware* -d
+rm -rf /tmp/VMware* /tmp/vmware-tool*
+yum update -y
+yum install -y samba
+
+reboot
+
+ipa-client-install --enable-dns-updates --mkhomedir
+
+sudo yum localinstall -y --nogpgcheck https://download.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
+sudo yum localinstall -y --nogpgcheck http://archive.zfsonlinux.org/epel/zfs-release.el7.noarch.rpm
+yum install -y kernel-devel zfs
+
+
+firewall-cmd --permanent --add-service=nfs
+firewall-cmd --permanent --add-service=samba
+firewall-cmd --permanent --add-service=ssh
+firewall-cmd --reload
+firewall-cmd --list-all
+
+#set max amount of ram for zfs to 2GB
+#sets permanently for reboot
+echo "options zfs zfs_arc_max=2147483648" >> /etc/modprobe.d/zfs.conf
+#sets for running config
+echo 2147483648 >> /sys/module/zfs/parameters/zfs_arc_max
+
+df -hT
+ls -lah /dev/disk/by-path/
+zpool create -f -o ashift=12 $backup_pool_name pci-0000:03:00.0-scsi-0:0:1:0 pci-0000:03:00.0-scsi-0:0:2:0
+
+
+zfs compression=lz4 $backup_pool_name
+zfs atime=off $backup_pool_name
+
+
+systemctl start nfs-server
+systemctl enable nfs-server
+
+#on data server
+yum install bash-completion git screen -y
+
+git clone https://github.com/zfsnap/zfsnap.git
+mv zfsnap /usr/local/src/
+
+ln -s /usr/local/src/zfsnap/sbin/zfsnap.sh /usr/local/sbin/zfsnap
+ln -s /usr/local/src/zfsnap/man/man8/zfsnap.8 /usr/local/share/man/man8/zfsnap.8
+ln -s /usr/local/src/zfsnap/completion/zfsnap-completion.bash /etc/bash_completion.d/
+
+
+useradd $user
+
+#make group 1000 name=public_share
+vim /etc/group
+
+yum install -y postfix mailx cyrus-sasl-plain
+
+vim /etc/postfix/sasl_passwd
+[$smtp_server]:587 $email:
+
+postmap hash:/etc/postfix/sasl_passwd
+
+
+vim /etc/postfix/main.cf
+relayhost = [$smtp_server]:587
+smtp_use_tls = yes
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt
+
+chmod 400 /etc/postfix/main.cf
+postmap /etc/postfix/sasl_passwd
+chmod 400 /etc/postfix/sasl_passwd
+
+systemctl restart postfix
+
+echo -e "MAIL" | mail -s "Test Email\!" $email
+rm /etc/postfix/sasl_passwd
+
+#on data server
+ssh-keygen -t rsa -f ~/.ssh/id_rsa_backup
+#copy contents of pubic key
+cat .ssh/id_rsa_backup.pub
+
+#on backup server
+mkdir .ssh
+#paste in contents of public key
+vim ~/.ssh/authorized_keys
+
+
+#zfs performance check, looks at zfs arc stats
+cat /proc/spl/kstat/zfs/arcstats
+rpm -qf /usr/bin/arcstat.py
+arcstat.py 2 10
+
+#on data server
+zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 1w $store_pool_name/$store_fileshare_name
+zfs list -t snap
+
+screen
+#replace variables for this command with actual values
+zfs send $(cat ~/lastsnap | cut -d" " -f4 | head -n 1) | ssh -i ~/.ssh/id_rsa_backup 172.16.0.15 zfs receive -F $backup_pool_name/$store_fileshare_name
+#press ctrl+a+d to leave screen running
+
+crontab -e
+# Minute   Hour   Day of Month       Month          Day of Week        Command
+# (0-59)  (0-23)     (1-31)    (1-12 or Jan-Dec)  (0-6 or Sun-Sat)
+    10      3           *               *               0               /bin/bash /root/cron_scripts/zfs_scrub.sh
+    0       5           *               *               *               /bin/bash /root/cron_scripts/zfs_health.sh
+    0       0           *               *               *               /bin/bash /root/cron_scripts/rsync_root.sh
+
+# Minute   Hour   Day of Month       Month          Day of Week        Command
+# (0-59)  (0-23)     (1-31)    (1-12 or Jan-Dec)  (0-6 or Sun-Sat)
+    3       *           *               *               *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-hourly- -a 2d $store_pool_name/$store_fileshare_name
+    20      0           *               *               *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-daily- -a 2w $store_pool_name/$store_fileshare_name
+    30      0           *               *               0               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-weekly- -a 1m $store_pool_name/$store_fileshare_name
+    0       1           1               *               *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-monthly- -a 1y $store_pool_name/$store_fileshare_name
+    50      23          31              12              *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-yearly- -a 2y $store_pool_name/$store_fileshare_name
+# delete snapshots, needs to occur well after the creation of the snapshots for 0 byte snap deletion, otherwise snapshots will be summarily deleted having no changes performed to create more than a 0 byte size
+    1       *           *               *               *               /root/cron_scripts/zfs_destroy_storage_snaps.sh
+#send zfs snapshots to backup server
+    2       0           *               *               *               /root/cron_scripts/zfs_backup.sh
+
+
+
+#    6       1           *               *               *				zfs send -I $(head -n 1 ~/lastsnap) $(tail -n 1 ~/lastsnap) | ssh -i ~/.ssh/id_rsa_backup 172.16.0.15 zfs receive -F $backup_pool_name/$store_fileshare_name | bash -c 'x=$(tail -n 1 ~/lastsnap);echo $x > ~/lastsnap'
+
+#on backup server
+crontab -e
+# Minute   Hour   Day of Month       Month          Day of Week        Command
+# (0-59)  (0-23)     (1-31)    (1-12 or Jan-Dec)  (0-6 or Sun-Sat)
+#check health of backup server
+    15       1           *               *               6               /bin/bash /root/cron_scripts/zfs_scrub.sh
+    15       2           *               *               *               /bin/bash /root/cron_scripts/zfs_health.sh
+#delete old snapshots
+    5       0           *               *               *               /root/cron_scripts/zfs_destroy_expired_backup_snaps.sh
+#power off backup server after done with it
+    15      4           *               *               *               /usr/sbin/poweroff
+

@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+#
+# Copyright S. Hesterberg, 2016
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 3, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING. If not, write to the
+# Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#
+# Author: Scott C. Hesterberg <scotthesterberg@users.noreply.github.com>
+
+
+#pull sensitive variables for this script from variable definition file
+source ~/variables.txt
+
+
+yum update -y 
+yum install -y epel-release
+yum install -y deltarpm gcc kernel-devel tar net-tools perl atop vim curl wget ipa-client rsync screen smartmontools hdparm bash-completion git
+
+yum install -y samba
+
+reboot
+
+ipa-client-install --enable-dns-updates --mkhomedir
+
+sudo yum localinstall -y --nogpgcheck https://download.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
+sudo yum localinstall -y --nogpgcheck http://archive.zfsonlinux.org/epel/zfs-release.el7.noarch.rpm
+
+yum install -y kernel-devel zfs
+#yum erase kernel-3.10.0-123.13.2.el7.x86_64
+#yum erase kernel-headers kernel-devel kernel-tools
+#yum erase zfs zfs-dkms libzfs2 spl spl-dkms dkmsc
+
+firewall-cmd --get-zones
+#shows ports used for nfs (only after nfs server activated)
+#rpcinfo -p | grep nfs
+#trying out below for solving the problem of vmware not seeing nfs shares on boot anymore (have to turn off firewall refresh storage and then turn it on)
+#for i in 2049 111; do for u in tcp udp; do firewall-cmd --permanent --add-port=$i/$u;done ;done
+firewall-cmd --permanent --add-service=nfs
+firewall-cmd --permanent --add-service=rpc-bind
+firewall-cmd --permanent --add-service=mountd
+firewall-cmd --permanent --add-service=samba
+firewall-cmd --permanent --add-service=ssh
+firewall-cmd --reload
+firewall-cmd --list-all
+
+
+#zpool create -o ashift=12 $store_pool_name mirror|raidz1 sdb sdc
+#ls -lah /dev/disk/by-id/
+#zpool create -o ashift=12 $store_pool_name mirror|raidz1 scsi-1ATA_Hitachi_HDS723030ALA640_MK0311YHGBYY2A scsi-1ATA_ST3000DM001-1CH166_W1F41LMC
+
+#set max amount of ram for zfs to 4GB
+#could calculate 75% of memory with something like this: echo $(($(($(($(grep MemTotal /proc/meminfo | awk '{print$2}')*1024))/4))*3))
+#sets permanently for reboot
+echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
+#sets for running config
+echo 4294967296 >> /sys/module/zfs/parameters/zfs_arc_max
+
+
+ls -lah /dev/disk/by-path/
+zpool create -o ashift=12 $store_pool_name mirror|raidz1 pci-0000:03:00.0-scsi-0:0:1:0 pci-0000:03:00.0-scsi-0:0:2:0
+
+zfs compression=lz4 $store_pool_name
+
+zfs atime=off $store_pool_name
+
+zfs create -o casesensitivity=mixed $store_pool_name/$store_fileshare_name
+
+zfs quota=2TB $store_pool_name/$store_fileshare_name
+
+#zfs reservation=1TB $store_pool_name/$store_fileshare_name
+
+#zfs dedup=verify $store_pool_name/$store_fileshare_name
+
+zfs create $store_pool_name/$store_vm_fileshare_name
+zfs quota=500GB $store_pool_name/$store_vm_fileshare_name
+
+#zfs create $store_pool_name/ovirt
+
+zfs create -o casesensitivity=mixed $store_pool_name/$store_backup_fileshare
+zfs quota=400GB $store_pool_name/$store_backup_fileshare
+zfs set sharesmb=on $store_pool_name/$store_backup_fileshare
+
+
+systemctl start nfs-server
+systemctl enable nfs-server
+
+zfs sharenfs=on $store_pool_name/$store_fileshare_name
+
+
+
+
+vim /etc/samba/smb.conf
+
+/#
+[global]
+    usershare path = /var/lib/samba/usershares
+    usershare max shares = 100
+    usershare allow guests = yes
+    usershare owner only = no
+#/
+
+mkdir -p /var/lib/samba/usershares
+
+systemctl enable smb
+
+systemctl enable nmb
+
+systemctl restart smb
+
+systemctl restart nmb
+
+zfs set sharesmb=on $store_pool_name/$store_fileshare_name
+
+# smbclient -U guest -N -L localhost
+
+smbpasswd -a $user
+
+chmod -R 775 /$store_pool_name/$store_fileshare_name/
+
+chgrp public_share /$store_pool_name/ /$store_pool_name/$store_fileshare_name/
+
+chown -R $user /$store_pool_name/$store_fileshare_name/
+
+#chmod -R u+s /$store_pool_name/$store_fileshare_name/
+
+#chmod -R g+s /$store_pool_name/$store_fileshare_name/
+
+ls -l /$store_pool_name/ /$store_pool_name/$store_fileshare_name/
+
+smbstatus #shows samba version running, useful to see connected clients
+
+pushd /var/lib/samba/usershares
+
+chmod -R 755 /var/lib/samba/usershares
+
+chmod -R +t /var/lib/samba/usershares
+
+df -h
+
+mount -t nfs4 172.16.100.11:/$store_pool_name/$store_fileshare_name /root/zfs/
+
+
+
+vim /etc/passwd
+$user:x:1000:1000::/home/$user:/bin/bash
+mail:x:12:postfix
+public_share:x:1000:$user
+
+#add user to wheel group
+usermod -G10 $user
+
+vim /etc/ssh/sshd_config
+PermitRootLogin no
+
+
+yum install -y postfix mailx cyrus-sasl-plain
+
+vim /etc/postfix/sasl_passwd
+[$smtp_server]:587 $email:password
+
+postmap hash:/etc/postfix/sasl_passwd
+
+
+vim /etc/postfix/main.cf
+relayhost = [$smtp_server]:587
+smtp_use_tls = yes
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt
+
+chmod 400 /etc/postfix/main.cf
+postmap /etc/postfix/sasl_passwd
+chmod 400 /etc/postfix/sasl_passwd
+
+systemctl restart postfix
+
+echo -e "MAIL" | mail -s "Test Email\!" $email
+rm /etc/postfix/sasl_passwd
+
+
+
+#on data server
+zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 1w $store_pool_name/$store_fileshare_name
+zfs list -t snap
+
+screen
+#replace variables for this command with actual values
+zfs send $(cat ~/lastsnap | cut -d" " -f4 | head -n 1) | ssh -i ~/.ssh/id_rsa_backup 172.16.0.15 zfs receive -F $backup_pool_name/$store_fileshare_name
+#press ctrl+a+d to leave screen running
+
+#copy backup scripts to the proper direcotry so crontab works
+
+crontab -e
+# Minute   Hour   Day of Month       Month          Day of Week        Command
+# (0-59)  (0-23)     (1-31)    (1-12 or Jan-Dec)  (0-6 or Sun-Sat)
+    10      3           *               *               0               /bin/bash /root/cron_scripts/zfs_scrub.sh
+    0       5           *               *               *               /bin/bash /root/cron_scripts/zfs_health.sh
+    0       0           *               *               *               /bin/bash /root/cron_scripts/rsync_root.sh
+
+# Minute   Hour   Day of Month       Month          Day of Week        Command
+# (0-59)  (0-23)     (1-31)    (1-12 or Jan-Dec)  (0-6 or Sun-Sat)
+    3       *           *               *               *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-hourly- -a 2d $store_pool_name/$store_fileshare_name
+    20      0           *               *               *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-daily- -a 2w $store_pool_name/$store_fileshare_name
+    30      0           *               *               0               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-weekly- -a 1m $store_pool_name/$store_fileshare_name
+    0       1           1               *               *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-monthly- -a 1y $store_pool_name/$store_fileshare_name
+    50      23          31              12              *               /usr/local/sbin/zfsnap snapshot -r -p $(hostname -s)-yearly- -a 2y $store_pool_name/$store_fileshare_name
+# delete snapshots, needs to occur well after the creation of the snapshots for 0 byte snap deletion, otherwise snapshots will be summarily deleted having no changes performed to create more than a 0 byte size
+#    1       *           *               *               *               /root/cron_scripts/zfs_destroy_storage_snaps.sh
+#send zfs snapshots to backup server
+    2       0           *               *               *               /root/cron_scripts/zfs_backup.sh
+
+
+
+
+
+#restore from backup
+mount $backup_server:$backup_share $backup_mountpoint
+
+rsync -Phruzq --no-perms /mnt/nas/ /$store_pool_name/$store_fileshare_name &
+#/
+screen
+rsync -az $backup_mountpoint $to_backup &
+exit
+
+
+#zfs performance check, looks at zfs arc stats
+cat /proc/spl/kstat/zfs/arcstats
+rpm -qf /usr/bin/arcstat.py
+arcstat.py 2 10
+
+#some commands for checking out zfs status
+echo && zpool list && echo && zfs get all | awk '$2=="compressratio"' && echo && zfs get all | awk '$2=="used"' && zfs get all | awk '$2=="logicalused"' && echo && zpool status -DD $store_pool_name | grep Total 
+
+zpool list && zfs list && zpool iostat -v
+
+zfs get all | grep dedup
+
+
+zfs get all | grep share
+
+zbd
+
+
+zdb -D $store_pool_name/$store_fileshare_name
+
+zdb -h $store_pool_name

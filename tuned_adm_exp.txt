@@ -1,0 +1,13 @@
+dd if=/dev/zero of=./bullshit.file bs=1M count=1000
+  986  dd if=/dev/zero of=./bullshit.file bs=1M count=5000
+  987  tuned-adm profile\
+  988  tuned-adm profile\
+  989  tuned-adm profile
+  990  tuned-adm profile liust
+  991  tuned-adm profile list
+  992  service tuned
+  993  tuned-adm
+  994  tuned-adm list
+  995  tuned-adm profile throughput-performance
+  996  dd if=/dev/zero of=./bullshit.file bs=1M count=5000
+  997  dd if=/dev/zero of=./bullshit.file bs=1M count=1000

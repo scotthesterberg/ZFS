@@ -1,0 +1,125 @@
+yum install gcc kernel-devel tar net-tools perl -y
+mkdir /tmp/cdrom
+mount /dev/cdrom /tmp/cdrom
+rm -f /tmp/VMware*
+cp /tmp/cdrom/VMware* /tmp
+umount /tmp/cdrom
+cd /tmp
+tar -xzf /tmp/VMware*
+/tmp/vmware-tool*/vmware* -d
+rm -rf /tmp/VMware* /tmp/vmware-tool*
+yum update -y
+yum install -y epel-release
+yum install -y atop vim curl wget ipa-client rsync screen git bash-completion
+yum install -y samba
+
+reboot
+
+sudo yum localinstall -y --nogpgcheck https://download.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
+sudo yum localinstall -y --nogpgcheck http://archive.zfsonlinux.org/epel/zfs-release.el7.noarch.rpm
+yum install -y kernel-devel zfs
+
+
+firewall-cmd --permanent --add-service=nfs
+firewall-cmd --permanent --add-service=samba
+firewall-cmd --permanent --add-service=ssh
+firewall-cmd --reload
+firewall-cmd --list-all
+
+df -hT
+ls -lah /dev/disk/by-path/
+zpool create -f -o ashift=12 ex_pool mirror pci-0000:03:00.0-scsi-0:0:1:0 pci-0000:03:00.0-scsi-0:0:2:0
+zpool create -f -o ashift=12 backup pci-0000:03:00.0-scsi-0:0:3:0 pci-0000:03:00.0-scsi-0:0:4:0
+
+zpool status
+zfs compression=lz4 ex_pool
+zfs compression=gzip-9 backup
+zfs atime=off ex_pool backup
+zfs create -o casesensitivity=mixed ex_pool
+#zfs dedup=on backup
+
+zfs create ex_pool/x
+zfs quota=20GB ex_pool/x
+zfs sharenfs=on ex_pool/x
+
+zfs create backup/x_snap
+zfs sharenfs=on backup/x_snap
+
+systemctl start nfs-server
+systemctl enable nfs-server
+
+git clone https://github.com/zfsnap/zfsnap.git
+mv zfsnap /usr/local/src/
+
+ln -s /usr/local/src/zfsnap/sbin/zfsnap.sh /usr/local/sbin/zfsnap
+ln -s /usr/local/src/zfsnap/man/man8/zfsnap.8 /usr/local/share/man/man8/zfsnap.8
+ln -s /usr/local/src/zfsnap/completion/zfsnap-completion.bash /etc/bash_completion.d/
+
+#on data server
+ssh-keygen -t rsa -f ~/.ssh/id_rsa_backup
+
+
+
+
+#thoughts on scheme
+#1 hour snapshots for 1 week
+#1 day for 2 weeks
+#1 weekly for 2 months
+#1 month for 1 year
+#1 year for 2 years?
+
+chrontab -e
+# Minute   Hour   Day of Month       Month          Day of Week        Command
+# (0-59)  (0-23)     (1-31)    (1-12 or Jan-Dec)  (0-6 or Sun-Sat)
+    6       *           *               *               *               /usr/local/sbin/zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 1w ex_pool/x | cut -d" " -f4 >> ~/lastsnap
+    15      3           *               *               *               /usr/local/sbin/zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 2w ex_pool/x | cut -d" " -f4 >> ~/lastsnap
+    0       4           *               *               0               /usr/local/sbin/zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 2m ex_pool/x | cut -d" " -f4 >> ~/lastsnap
+    0       0           1               *               *               /usr/local/sbin/zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 1y ex_pool/x | cut -d" " -f4 >> ~/lastsnap
+	0       0           31              12              *               /usr/local/sbin/zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 2y ex_pool/x | cut -d" " -f4 >> ~/lastsnap
+# delete snapshots
+	15      3           *               *               *               /usr/local/sbin/zfsnap destory -rv -F 3d ex_pool/x
+    6       1           *               *               *				zfs send -I $(head -n 1 lastsnap) $(tail -n 1 lastsnap) | ssh -i ~/.ssh/id_rsa_backup 172.16.0.15 zfs receive -F backup/x | bash -c 'x=$(tail -n 1 ~/lastsnap);echo $x > ~/lastsnap'
+	
+zfs send -I $(head -n 1 lastsnap) $(tail -n 1 lastsnap) | ssh -i ~/.ssh/id_rsa_backup 172.16.0.15 zfs receive -F backup/x | bash -c 'x=$(tail -n 1 ~/lastsnap);echo $x > ~/lastsnap'
+
+zfsnap snapshot -rv -p $(hostname -s)-hourly- -a 1w ex_pool/x | cut -d" " -f4 >> ~/lastsnap
+	
+#inital zfs transfer
+#zfs send poolname/snapshotname | zfs receive backup/x
+zfs send $(cat lastsnap | cut -d" " -f4 | head -n 1) | zfs receive -F backup/x
+
+#send all incremental snapshots from the first listed to second listed
+#zfs send -I poolname/snapshotname poolname/snapshotname3 | zfs receive -F backup/x
+zfs send -I $(head -n 1 lastsnap) $(tail -n 1 lastsnap) | zfs receive -F backup/x
+
+bash -c 'x=$(tail -n 1 ~/lastsnap);echo $x > ~/lastsnap'
+
+#destroy a snapshot with zfsnap
+#zfsnap destroy -rD -p hourly- ex_pool/x
+
+
+
+
+
+#for loop that makes files for backup testing
+for file in [1..24]
+do
+	sleep 3600
+	touch /ex_pool/x/testfile$file
+done
+
+
+
+mkdir /usr/local/src/simplesnap
+mkdir /usr/local/src/simplesnap/man
+mkdir /usr/local/src/simplesnap/man/man8
+
+cp ~/simplesnap/simplesnap /usr/local/src/simplesnap/
+cp ~/simplesnap/simplesnapwrap /usr/local/src/simplesnap/
+cp /usr/local/src/simplesnap/doc/simplesnap.8 /usr/local/src/simplesnap/man/man8/
+
+mkdir /usr/local/sbin/simplesnap/
+
+ln -s /usr/local/src/simplesnap/simplesnap /usr/local/sbin/simplesnap/simplesnap
+ln -s /usr/local/src/simplesnap/simplesnapwrap /usr/local/sbin/simplesnap/simplesnapwrap
+ln -s /usr/local/src/simplesnap/man/man8/zfsnap.8 /usr/local/share/man/man8/zfsnap.8
