@@ -1,5 +1,5 @@
 # Whats here?
-This is a pile of scripts I have created to manage my ZFS file server. They are designed to work with the [zfssnap tool](https://github.com/zfsnap/zfsnap).
+This is a pile of scripts I have created to manage my ZFS file server. They are designed to work with [zfssnap](https://github.com/zfsnap/zfsnap).
 
 # Descriptions
 	*zfs_backup.sh : Execute on backup server to pull snapshots off production zfs file servers. Both should have zfsnap installed, the backup server will need key based access to the production server.
