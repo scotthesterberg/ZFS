@@ -51,9 +51,9 @@ for fs in $fsWithSnapshots ; do
 		/sbin/zfs destroy $snapshot
 	done
 	#delete old snapshots from storage server
-	for snapType in hourly- daily- weekly- monthly- yearly- ; do
-		deleted="$deleted\n $(/usr/local/sbin/zfsnap destroy -r -p $(/bin/hostname -s)-$snapType -F $snap_life $fs)"
-	done
+	#for snapType in hourly- daily- weekly- monthly- yearly- ; do
+		#deleted="$deleted\n $(/usr/local/sbin/zfsnap destroy -r -p $(/bin/hostname -s)-$snapType -F $snap_life $fs)"
+	#done
 	#if [ -z $deleted ]; then
 		#MAIL="ZFS snapshots on $(hostname) deleted! \n"
 		#printf "$MAIL \n $deleted" | mail -s "ZFS snapshots on $(/bin/hostname -s) deleted!" $email
