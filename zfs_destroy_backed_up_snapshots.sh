@@ -44,7 +44,10 @@ hold_tag=protected_snap
 num_common_snaps=2
 new_holds=""
 #email=youremailaddress
-#filesystems=filesystemstosearchforsnapshots
+#backup_pool_name=localpoolname
+#store_pool_name=remotepoolname
+#store_fileshare_name=nameofremotefilesshare
+#store_server=remoteserverip
 
 
 #store list of snapshots on backup server
@@ -70,7 +73,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	#determine last common snapshot
 	last_common=$(/bin/tail -n 1 /tmp/common_snaps)
 	
-	#create list of uncommon snapshots that happened after the last common snapshot
+	#create list of uncommon snapshots that happened after the last common snapshot, excepting hourlys
 	/bin/sed -e "0,/$last_common/d" -e "/hourly/d" /tmp/store_snaps > /tmp/uncommon_snaps
 	
 	#create list of local snapshots with holds
@@ -82,45 +85,56 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	esc=$(expr $esc + $?)
 	
 	#create list of common snapshots that do no already have holds on them
+	#this grep means output anything that is in file2 that is not in file1
 	common_snaps_remote=$(grep -F -x -v -f /tmp/remote_snap_holds /tmp/common_snaps)
+	#create list of snapshots that have come into existance since the most recent common snap
+	#that do not have holds on them, we will place holds on these, excepting hourly, 
+	#to prevent their deltion before they have been backed up
 	uncommon_snaps=$(grep -F -x -v -f /tmp/remote_snap_holds /tmp/uncommon_snaps)
 	if [[ ! -z $common_snaps_remote && ! -z $uncommon_snaps ]]; then
-	#add holds to snaps that are common, or that have been created after the last common snap on remote server
-	/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "for snap in "$common_snaps_remote" "$uncommon_snaps"; do /sbin/zfs hold $hold_tag '$store_pool_name/'\$snap; done"
-	esc=$(expr $esc + $?)
+		#add holds to snaps that are common, or that have been created after the last common snap on remote server
+		/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "for snap in "$common_snaps_remote" "$uncommon_snaps"; do /sbin/zfs hold $hold_tag '$store_pool_name/'\$snap; done"
+		esc=$(expr $esc + $?)
 	fi
 	
 	#add holds to snaps that are common on local server
 	common_snaps_local=$(grep -F -x -v -f /tmp/local_snap_holds /tmp/common_snaps)
 	if [[ ! -z $common_snaps_local ]]; then
-	for snap in $common_snaps_local; do /sbin/zfs hold $hold_tag $backup_pool_name/$snap; done
-	esc=$(expr $esc + $?)
+		for snap in $common_snaps_local; do /sbin/zfs hold $hold_tag $backup_pool_name/$snap; done
+		esc=$(expr $esc + $?)
 	fi
 	
 	#create list of remote snaps that are not common and have holds on them
 	grep -F -x -v -f /tmp/common_snaps /tmp/remote_snap_holds > /tmp/release_snap_holds
 	release_snap_holds_remote=$(grep -F -x -v -f /tmp/uncommon_snaps /tmp/release_snap_holds)
 	if [[ ! -z $release_snap_holds_remote ]]; then
-	#release holds on remote snaps that are not common
-	/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "for snap in "$release_snap_holds_remote"; do /sbin/zfs release $hold_tag '$store_pool_name/'\$snap; done"
-	esc=$(expr $esc + $?)
+		#release holds on remote snaps that are not common
+		/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "for snap in "$release_snap_holds_remote"; do /sbin/zfs release $hold_tag '$store_pool_name/'\$snap; done"
+		esc=$(expr $esc + $?)
 	fi
 	
 	#create list of local snaps that are not common and have holds
 	release_snap_holds_local=$(grep -F -x -v -f /tmp/common_snaps /tmp/local_snap_holds)
 	if [[ ! -z $release_snap_holds_local ]]; then
-	for snap in $release_snap_holds_local; do /sbin/zfs release $hold_tag $backup_pool_name/$snap; done 
-	esc=$(expr $esc + $?)
+		#remove holds on snapshots that are not common
+		for snap in $release_snap_holds_local; do /sbin/zfs release $hold_tag $backup_pool_name/$snap; done 
+		esc=$(expr $esc + $?)
 	fi
 	
+	#delete all the tmp files we created manipulating snapshot holds
+	rm -f /tmp/back_snaps /tmp/common /tmp/common_snaps /tmp/local_snap_holds /tmp/remote_snap_holds /tmp/release_snap_holds /tmp/store_snaps /tmp/uncommon_snaps 2> /dev/null
+	
+	#check to see if our manipulation of snap holds went well
 	if [ $esc = 0 ]; then
 		#delete old snapshots from storage server
 		deleted="$deleted $(ssh -i ~/.ssh/id_rsa_backup $store_server "for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done")"
+		#send email of snaps deleted if any were deleted
 		if [ ! -z "$deleted" ]; then
-			MAIL="ZFS snapshots on $(hostname) deleted! \n"
-			printf "$MAIL \n $deleted" | mail -s "ZFS snapshots on $(/bin/hostname -s) deleted!" $email
+			MAIL="ZFS snapshots on $store_server deleted! \n"
+			printf "$MAIL \n $deleted" | mail -s "ZFS snapshots deleted!" $email
 			exit 0
 		fi
+	#send email with exit code sum for holds if greater than 0
 	else
 		MAIL="ZFS holds on $store_server snapshots FAILED! Did not delete snapshots. Exit code:"
 		printf "$MAIL \n $esc" | mail -s "ZFS destroy $store_server snapshots FAILED!" $email
