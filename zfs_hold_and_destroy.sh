@@ -127,24 +127,22 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	#check to see if our manipulation of snap holds went well
 	if [ $esc = 0 ]; then
 		#delete old snapshots from storage server
-		deleted_remote="$deleted_remote $(ssh -i ~/.ssh/id_rsa_backup $store_server "for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done")"
-		deleted_local="$deleted_remote $(for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done)"
-		#send email of snaps deleted if any were deleted
-		if [[ ! -z "$deleted" -o ! -z "$deleted_remote"]]; then
-			MAIL="ZFS snapshots on $(/bin/hostname) and $store_server deleted! \n"
-			printf "$MAIL \n $store_server\n $deleted_local \n $(/bin/hostname -s)\n $deleted_remote" | mail -s "ZFS snapshots on $(/bin/hostname -s) deleted!" $email
-			exit 0
-		fi
+		deleted_remote="$deleted_remote \n$(ssh -i ~/.ssh/id_rsa_backup $store_server "for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done")"
+		deleted_local="$deleted_remote \n$(for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done)"
+		#send email
+		MAIL="ZFS snapshots on $(/bin/hostname) and $store_server deleted! \n"
+		printf "$MAIL \n$store_server \n$deleted_local \n$(/bin/hostname -s) \n$deleted_remote" | mail -s "ZFS snapshots on $(/bin/hostname -s) deleted!" $email
+		exit 0
 	#send email with exit code sum for holds if greater than 0
 	else
 		MAIL="ZFS holds on $store_server snapshots FAILED! Did not delete snapshots. Exit code:"
-		printf "$MAIL \n $esc" | mail -s "ZFS destroy $store_server snapshots FAILED!" $email
+		printf "$MAIL \n$esc" | mail -s "ZFS destroy $store_server snapshots FAILED!" $email
 		rm -f ~/ssh_std_err
 		exit 1
 	fi
 else
 	MAIL="ZFS list $store_server snapshots FAILED while attempting to destroy old snapshots! Error:"
-	/bin/printf "$MAIL \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
+	/bin/printf "$MAIL \nssh output: \n$( /bin/cat /tmp/ssh_std_err) \n\
 	zfs list output $(/bin/cat /tmp/zfs_list_err)" \
 	| /bin/mail -s "ZFS destroy $store_server snapshots FAILED\!" $email
 	#delete error files
