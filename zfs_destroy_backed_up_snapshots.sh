@@ -84,12 +84,12 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "/sbin/zfs list -H -r -d 1 -t snapshot -o name $store_pool_name/$store_fileshare_name | xargs -n1 zfs holds -H "| grep $hold_tag | awk '{print $1}' | awk -F / '{print $2}' > /tmp/remote_snap_holds
 	esc=$(expr $esc + $?)
 	
-	#create list of common snapshots that do no already have holds on them
+	#create list of common snapshots that do not already have holds on them
 	#this grep means output anything that is in file2 that is not in file1
 	common_snaps_remote=$(grep -F -x -v -f /tmp/remote_snap_holds /tmp/common_snaps)
 	#create list of snapshots that have come into existance since the most recent common snap
 	#that do not have holds on them, we will place holds on these, excepting hourly, 
-	#to prevent their deltion before they have been backed up
+	#to prevent their deletion before they have been backed up
 	uncommon_snaps=$(grep -F -x -v -f /tmp/remote_snap_holds /tmp/uncommon_snaps)
 	if [[ ! -z $common_snaps_remote && ! -z $uncommon_snaps ]]; then
 		#add holds to snaps that are common, or that have been created after the last common snap on remote server
