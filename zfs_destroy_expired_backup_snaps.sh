@@ -21,6 +21,7 @@
 
 
 #this script deletes expired zfsnap snapshots from the system it is run on according to their ttl
+#it should be run on your backup server to delete expired snapshots
 
 #pull sensitive variables for this script from variable definition file
 if [ -f ~/variables.txt ]; then
