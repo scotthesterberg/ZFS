@@ -37,7 +37,7 @@ ipa-client-install --enable-dns-updates --mkhomedir
 sudo yum localinstall -y --nogpgcheck https://download.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
 sudo yum localinstall -y --nogpgcheck http://archive.zfsonlinux.org/epel/zfs-release.el7.noarch.rpm
 
-yum install -y kernel-devel zfs
+yum install -y zfs zfs-dkms libzfs2 spl spl-dkms dkmsc
 #yum erase kernel-3.10.0-123.13.2.el7.x86_64
 #yum erase kernel-headers kernel-devel kernel-tools
 #yum erase zfs zfs-dkms libzfs2 spl spl-dkms dkmsc
