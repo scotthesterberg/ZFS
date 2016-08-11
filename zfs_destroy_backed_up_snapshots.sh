@@ -135,7 +135,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 		done
 		#send email
 		MAIL="ZFS snapshots on $(/bin/hostname) and $store_server_hostname deleted! \n"
-		printf "$MAIL \n$store_server_hostname \n$deleted_remote \n$(/bin/hostname -s) \n$deleted_local" | mail -s "ZFS snapshots on $(/bin/hostname -s) deleted!" $email
+		printf "$MAIL \n$store_server_hostname \n$deleted_remote \n$(/bin/hostname -s) \n$deleted_local" | mail -s "ZFS snapshots on $(/bin/hostname -s) and $store_server_hostname deleted!" $email
 		exit 0
 	#send email with exit code sum for holds if greater than 0
 	else
