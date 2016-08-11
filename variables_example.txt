@@ -22,6 +22,7 @@
 
 #zfs snapshot backup variables
 email=youremail
+send_email={yes|no}
 backup_server=backupzfsserveripordns
 store_server=storagezfsserveripordns
 
