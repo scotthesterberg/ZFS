@@ -128,7 +128,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	if [ $esc = 0 ]; then
 		#delete old snapshots from storage server
 		deleted_remote="$deleted_remote \n$(ssh -i ~/.ssh/id_rsa_backup $store_server "for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done")"
-		deleted_local="$deleted_remote \n$(for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done)"
+		deleted_local="$deleted_local \n$(for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done)"
 		#send email
 		MAIL="ZFS snapshots on $(/bin/hostname) and $store_server deleted! \n"
 		printf "$MAIL \n$store_server \n$deleted_local \n$(/bin/hostname -s) \n$deleted_remote" | mail -s "ZFS snapshots on $(/bin/hostname -s) deleted!" $email
