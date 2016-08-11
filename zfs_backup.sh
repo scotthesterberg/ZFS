@@ -29,7 +29,7 @@ else
 	exit 1
 fi
 
-#~/cron_scripts/zfs_destroy_storage_snaps.sh
+#~/cron_scripts/zfs_destroy_backed_up_snapshots.sh
 
 #initialize variables
 #email=youremail
