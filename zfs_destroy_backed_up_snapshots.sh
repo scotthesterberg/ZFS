@@ -131,7 +131,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 		#delete old snapshots from storage server on backup server
 		for snapType in hourly- daily- weekly- monthly- yearly-
 		do
-			deleted_local="$deleted_local\n $(/usr/local/sbin/zfsnap destroy -r -p $hostname-$snapType $backup_pool_name/$store_fileshare_name 2> /dev/null)"
+			deleted_local="$deleted_local\n $(/usr/local/sbin/zfsnap destroy -r -p $store_server_hostname-$snapType $backup_pool_name/$store_fileshare_name 2> /dev/null)"
 		done
 		#send email
 		MAIL="ZFS snapshots on $(/bin/hostname) and $store_server_hostname deleted! \n"
