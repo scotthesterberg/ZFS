@@ -37,13 +37,13 @@ do
 			if [ $(/sbin/zpool scrub $pool)=0 ]; then
 					sleep 3000
 					MAIL="ZFS scrub ran. Output: \n\n $(/sbin/zpool status)"
-					echo -e "$MAIL" | mail -s "ZFS scrub ran on '$(/bin/hostname -s)'" $email
+					echo -e "$MAIL" | mail -s "ZFS scrub ran on $(/bin/hostname -s)" $email
 			else
 					MAIL="ZFS scrub FAILED to run! Output: \n\n $(/sbin/zpool status)"
-					echo -e "$MAIL" | mail -s "ZFS scrub FAILED to run on '$(/bin/hostname -s)'" $email
+					echo -e "$MAIL" | mail -s "ZFS scrub FAILED to run on $(/bin/hostname -s)" $email
 			fi
 	else
 			MAIL="ZFS scrub FAILED to run due to ongoing scrub or disk resilver! Output: \n\n $(/sbin/zpool status)"
-			echo -e "$MAIL" | mail -s "ZFS scrub FAILED to run  on '$(/bin/hostname -s)' due to ongoing scrub or disk resilver" $email
+			echo -e "$MAIL" | mail -s "ZFS scrub FAILED to run  on $(/bin/hostname -s) due to ongoing scrub or disk resilver" $email
 	fi
 done
