@@ -89,7 +89,7 @@ vim /etc/group
 yum install -y postfix mailx cyrus-sasl-plain
 
 vim /etc/postfix/sasl_passwd
-[$smtp_server]:587 $email:
+[$smtp_server]:587 $email:password
 
 postmap hash:/etc/postfix/sasl_passwd
 
@@ -111,12 +111,12 @@ systemctl restart postfix
 echo -e "MAIL" | mail -s "Test Email\!" $email
 rm /etc/postfix/sasl_passwd
 
-#on data server
+#on backup server
 ssh-keygen -t rsa -f ~/.ssh/id_rsa_backup
 #copy contents of pubic key
 cat .ssh/id_rsa_backup.pub
 
-#on backup server
+#on data server
 mkdir .ssh
 #paste in contents of public key
 vim ~/.ssh/authorized_keys
