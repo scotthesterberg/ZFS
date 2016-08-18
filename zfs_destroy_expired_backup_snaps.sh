@@ -24,8 +24,8 @@
 #it should be run on your backup server to delete expired snapshots
 
 #pull sensitive variables for this script from variable definition file
-if [ -f ~/variables.txt ]; then
-	source ~/variables.txt
+if [ -f ./variables.txt ]; then
+	source ./variables.txt
 else
 	MAIL="Variables definition file missing! As a result ZFS snapshot deletion could not be run on $(hostname)"
 	printf "$MAIL" | mail -s "ZFS snapshot deletion failed!" $email

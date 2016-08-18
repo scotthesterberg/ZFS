@@ -21,8 +21,8 @@
 
 
 #pull sensitive variables for this script from variable definition file
-if [ -f ~/variables.txt ]; then
-	source ~/variables.txt
+if [ -f ./variables.txt ]; then
+	source ./variables.txt
 else
 	MAIL="Variables definition file missing! As a result ZFS backup could not be run"
 	printf "$MAIL" | mail -s "ZFS backup failed!" $email

@@ -21,7 +21,7 @@
 
 
 #pull sensitive variables for this script from variable definition file
-source ~/variables.txt
+source ../variables.txt
 
 yum install -y epel-release
 yum install -y deltarpm gcc kernel-devel tar net-tools perl smartmontools hdparm atop vim curl wget ipa-client rsync screen git bash-completion

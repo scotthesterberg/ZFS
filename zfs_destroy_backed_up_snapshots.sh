@@ -28,8 +28,8 @@
 #additionally holds are placed on common backed up snapshots
 
 #pull sensitive variables for this script from variable definition file
-if [ -f ~/variables.txt ]; then
-	source ~/variables.txt
+if [ -f ./variables.txt ]; then
+	source ./variables.txt
 else
 	MAIL="Variables definition file missing! As a result ZFS snapshot deletion could not be run $(hosname)"
 	printf "$MAIL" | mail -s "ZFS snapshot deletion failed!" $email
@@ -54,7 +54,7 @@ new_holds=""
 /sbin/zfs list -Hr -t snap $backup_pool_name/$store_fileshare_name | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/back_snaps
 
 #store list of snapshots on storage server
-/bin/ssh -i ~/.ssh/id_rsa_backup $store_server /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name 2> ~/ssh_std_err | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/store_snaps
+/bin/ssh -i ~/.ssh/id_rsa_backup $store_server /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/store_snaps
 
 last_back_snap="${back_snaps[1]}"
 
@@ -141,7 +141,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	else
 		MAIL="ZFS holds on $store_server snapshots FAILED! Did not delete snapshots. Exit code:"
 		printf "$MAIL \n$esc" | mail -s "ZFS destroy $store_server snapshots FAILED!" $email
-		rm -f ~/ssh_std_err
+		rm -f /tmp/ssh_std_err
 		exit 1
 	fi
 else

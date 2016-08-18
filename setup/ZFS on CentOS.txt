@@ -21,7 +21,7 @@
 
 
 #pull sensitive variables for this script from variable definition file
-source ~/variables.txt
+source ../variables.txt
 
 
 yum update -y 
