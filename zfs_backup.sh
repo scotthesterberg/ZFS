@@ -43,7 +43,7 @@ fi
 /sbin/zfs list -Hr -t snap $backup_pool_name/$store_fileshare_name 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F / '{print $2}' | /bin/sort -r > /tmp/back_snaps
 
 #store list of snapshots on storage server
-/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F / '{print $2}' > /tmp/store_snaps
+/bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F / '{print $2}' > /tmp/store_snaps
 
 #find latest storage server snapshot
 #to be sent with all predecessors created since last backup to backup server
@@ -71,7 +71,7 @@ if [ ! -z $common_snap ]; then
 	#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
 	#ouput of the zfs send and zfs receive commands is saved in temporary txt files to be sent to user
 	#save the exit status of the two sides of pipe in variables and add them for a exit status total`
-	/bin/ssh -i ~/.ssh/id_rsa_backup $store_server /sbin/zfs send -vI $store_pool_name/$common_snap $store_pool_name/$latest_snap 2> /tmp/zfs_send_tmp.txt\
+	/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs send -vI $store_pool_name/$common_snap $store_pool_name/$latest_snap 2> /tmp/zfs_send_tmp.txt\
 	| /sbin/zfs receive -vF $backup_pool_name/$store_backup_fileshare &> /tmp/zfs_receive_tmp.txt;\
 	pipe1=${PIPESTATUS[0]} pipe2=${PIPESTATUS[1]} 
 	total_err=$(($pipe1+$pipe2))
