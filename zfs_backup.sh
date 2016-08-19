@@ -40,7 +40,7 @@ fi
 #backup_filesystem_name=backupezfsserverfilesystemname
 
 #store list of snapshots on backup server
-/sbin/zfs list -Hr -t snap $backup_pool_name/$store_fileshare_name 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F / '{print $2}' | /bin/sort -r > /tmp/back_snaps
+/sbin/zfs list -Hr -t snap $backup_pool_name/$store_backup_fileshare 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F / '{print $2}' | /bin/sort -r > /tmp/back_snaps
 
 #store list of snapshots on storage server
 /bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F / '{print $2}' > /tmp/store_snaps
