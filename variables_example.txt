@@ -37,6 +37,8 @@ store_vm_fileshare_name=nameforvirtualmachinefileshare
 
 backup_pool_name=nameforbackupfileshare
 
+#ssh key for backup system for authenticating to systems to be backed up
+ssh_backup_key=fullpathtosshkeylocation
 
 domain=yourdomainname
 nameserver1=nameserverip
