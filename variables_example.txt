@@ -19,27 +19,36 @@
 #
 # Author: Scott C. Hesterberg <scotthesterberg@users.noreply.github.com>
 
+#this is an example file of variables nessesary for performing a backup
+#file should be named variable.txt
 
-#zfs snapshot backup variables
+#variables for zfs snapshot backup
+#email variables
 email=youremail
-send_email={yes|no}
-backup_server=backupzfsserveripordns
-store_server=storagezfsserveripordns
-
-backup_server_hostname=backupserverhostname
-store_server_hostname=storeserverhostname
-user=username
 smtp_server=smtpservername
-store_pool_name=storepoolname
-store_backup_fileshare=nameforbackupfileshare
-store_fileshare_name=nameforfileshare
-store_vm_fileshare_name=nameforvirtualmachinefileshare
+send_email={yes|no} #send emails from scripts reporting results
+send_fail_email={yes|no} #if the above is no would you like to send emails on failure
 
+#backup server variables
+backup_server_hostname=backupserverhostname
+backup_server=backupzfsserveripordns
 backup_pool_name=nameforbackupfileshare
-
-#ssh key for backup system for authenticating to systems to be backed up
+store_backup_fileshare=nameforfilesharetobackupto
+#ssh key on backup system for authenticating to system to be backed up
 ssh_backup_key=fullpathtosshkeylocation
 
+#storage server properties
+store_server_hostname=storeserverhostname
+store_server=storagezfsserveripordns
+store_pool_name=storepoolname
+store_fileshare_name=nameforfileshare
+store_vm_fileshare_name=nameforvirtualmachinefileshare
+user=username
+
+
+#################
+
+#dns variables
 domain=yourdomainname
 nameserver1=nameserverip
 nameserver2=nameserverip
@@ -51,7 +60,6 @@ git_user_email=gituseremail
 #vim
 vim_author="vim author"
 vim_email=vimemail
-
 
 #rsync variables
 backup_share=sharetobebackedupto
