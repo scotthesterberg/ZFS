@@ -19,6 +19,13 @@
 #
 # Author: Scott C. Hesterberg <scotthesterberg@users.noreply.github.com>
 
+#variables required
+#email=youremail
+#store_server=zfsfilestoreserverip/dns
+#store_pool_name=storagezfsserverpoolname
+#store_filesystem_name=storagezfsserverfilesystemname
+#backup_pool_name=backupzfsserverpoolname
+#backup_filesystem_name=backupezfsserverfilesystemname
 
 #pull sensitive variables for this script from variable definition file
 if [ -f ./variables.txt ]; then
@@ -30,29 +37,51 @@ else
 	exit 1
 fi
 
-#method for sending email
+#function for sending email
 Mail(){
-subject=$1
-body=$2
+	subject=$1
+	body=$2
 
-printf "$body" | mail -s "$subject" $email
+	printf "$body" | mail -s "$subject" $email
 }
-#~/cron_scripts/zfs_destroy_backed_up_snapshots.sh
 
-#initialize variables
-#email=youremail
-#store_server=zfsfilestoreserverip/dns
-#store_pool_name=storagezfsserverpoolname
-#store_filesystem_name=storagezfsserverfilesystemname
-#backup_pool_name=backupzfsserverpoolname
-#backup_filesystem_name=backupezfsserverfilesystemname
+#run old snapshot deletion script before running backups
+#this may free up needed space
+#./zfs_destroy_backed_up_snapshots.sh
 
-#store list of snapshots on backup server
-/sbin/zfs list -Hr -t snap $backup_pool_name/$store_backup_fileshare 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
+#this function creates a list of the names of snapshots on the local zfs system
+#with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
+List_local_snapshots(){
+	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
+	snapshot_location=$1
+
+	/sbin/zfs list -Hr -t snap $backup_pool_name/$store_backup_fileshare 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
+}
 
 #store list of snapshots on storage server
 /bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
 
+#this function creates a list of the names of snapshots on a remote zfs system
+#with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
+List_remote_snapshots(){
+	#location of ssh key to used for authentication
+	ssh_key=$1
+	#user to authenticate as
+	user=$2
+	#ip or dns of remote server
+	remote_server=$3
+	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
+	snapshot_location=$4
+	
+	#if we still want to delete zero byte snapshots before creating our list of remote snapshots we need to make something like the below work
+	#~/cron_scripts/zfs_destroy_storage_snaps.sh
+	#perhaps scp the shell script over to /tmp
+	#/bin/scp -i $ssh_key ./zfs_destroy_storage_snaps.sh $remote_server:/tmp/
+	#then run it and then clean up
+	#/bin/ssh -i $ssh_key $remote_server "/usr/bin/chown +x /tmp/zfs_destroy_storage_snaps.sh && ./tmp/zfs_destroy_storage_snaps.sh && rm -f /tmp/zfs_destroy_storage_snaps.sh"
+	
+	/bin/ssh -i $ssh_key $remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
+}
 #find latest storage server snapshot
 #to be sent with all predecessors created since last backup to backup server
 latest_snap=$(tail -n 1 /tmp/store_snaps)
