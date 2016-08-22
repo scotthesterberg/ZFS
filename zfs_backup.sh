@@ -24,11 +24,19 @@
 if [ -f ./variables.txt ]; then
 	source ./variables.txt
 else
-	MAIL="Variables definition file missing! As a result ZFS backup could not be run"
-	printf "$MAIL" | mail -s "ZFS backup failed!" $email
+	#MAIL="Variables definition file missing! As a result ZFS backup could not be run"
+	#printf "$MAIL" | mail -s "ZFS backup failed!" $email
+	Mail 'ZFS backup failed!' "Variables definition file missing! As a result ZFS backup could not be run" 
 	exit 1
 fi
 
+#method for sending email
+Mail(){
+subject=$1
+body=$2
+
+printf "$body" | mail -s "$subject" $email
+}
 #~/cron_scripts/zfs_destroy_backed_up_snapshots.sh
 
 #initialize variables
@@ -58,10 +66,14 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	#delete error files
 	/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/common_snaps
 else
-	MAIL="ZFS list $store_server snapshots FAILED! Error:"
-	/bin/printf "$MAIL \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
+	#MAIL="ZFS list $store_server snapshots FAILED! Error:"
+	#/bin/printf "$MAIL \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
 	zfs list output $(/bin/cat /tmp/zfs_list_err)" \
 	| /bin/mail -s "ZFS list $store_server snapshots FAILED!" $email
+	
+	Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
+	zfs list output $(/bin/cat /tmp/zfs_list_err)" 
+	
 	#delete error files
 	/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/store_snaps /tmp/back_snaps
 	exit 1
@@ -79,17 +91,26 @@ if [ ! -z $common_snap ]; then
 	if [ $total_err -eq 0 ]; then
 		#MAIL="ZFS send backup SUCCEEDED! \n"
 		#printf "$MAIL \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | mail -s "ZFS send backup SUCCEEDED!" $email
+		
+		Mail "ZFS send backup SUCCEEDED"'!' "ZFS send backup SUCCEEDED! \n \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
+		
 		/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
 		exit 0
    else
-        MAIL="ZFS send backup FAILED! Error:"
-        /bin/printf "$MAIL \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | /bin/mail -s "ZFS send backup FAILED!" $email
-        /bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
+        #MAIL="ZFS send backup FAILED! Error:"
+        #/bin/printf "$MAIL \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | /bin/mail -s "ZFS send backup FAILED!" $email
+        
+		Mail "ZFS send backup FAILED"'!' "ZFS send backup FAILED! Error: \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
+		
+		/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
 		exit 2
    fi
 else
-    MAIL="ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
-    /bin/printf "$MAIL \n " | /bin/mail -s "ZFS send backup FAILED with no common snapshots!" $email
+    #MAIL="ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
+    #/bin/printf "$MAIL \n " | /bin/mail -s "ZFS send backup FAILED with no common snapshots!" $email
+	
+	Mail "ZFS send backup FAILED with no common snapshots"'!' "ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
+	
 	/bin/rm -f /tmp/store_snaps /tmp/back_snaps
 	exit 3
 fi
