@@ -28,8 +28,8 @@
 #additionally holds are placed on common backed up snapshots
 
 #pull sensitive variables for this script from variable definition file
-if [ -f ./variables.txt ]; then
-	source ./variables.txt
+if [ -f ~/variables.txt ]; then
+	source ~/variables.txt
 else
 	MAIL="Variables definition file missing! As a result ZFS snapshot deletion could not be run $(hosname)"
 	printf "$MAIL" | mail -s "ZFS snapshot deletion failed!" $email
