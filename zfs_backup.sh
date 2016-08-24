@@ -39,7 +39,9 @@ fi
 
 #function for sending email
 Mail(){
+	#first argument should be subject of email
 	subject=$1
+	#second argument should be body of email
 	body=$2
 
 	printf "$body" | mail -s "$subject" $email
@@ -55,11 +57,13 @@ List_local_snapshots(){
 	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
 	snapshot_location=$1
 
-	/sbin/zfs list -Hr -t snap $backup_pool_name/$store_backup_fileshare 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
+	/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
 }
 
-#store list of snapshots on storage server
-/bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
+List_local_snapshots $backup_pool_name/$store_backup_fileshare
+
+#store list of snapshots on remote server
+#/bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
 
 #this function creates a list of the names of snapshots on a remote zfs system
 #with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
@@ -80,13 +84,16 @@ List_remote_snapshots(){
 	#then run it and then clean up
 	#/bin/ssh -i $ssh_key $remote_server "/usr/bin/chown +x /tmp/zfs_destroy_storage_snaps.sh && ./tmp/zfs_destroy_storage_snaps.sh && rm -f /tmp/zfs_destroy_storage_snaps.sh"
 	
-	/bin/ssh -i $ssh_key $remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
+	/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
 }
+
+List_remote_snapshots $ssh_backup_key $user $store_server $store_pool_name/$store_fileshare_name
+
 #find latest storage server snapshot
 #to be sent with all predecessors created since last backup to backup server
 latest_snap=$(tail -n 1 /tmp/store_snaps)
 
-#test to see if we were successful in listing snapshots
+#test to see if we were successful in listing snapshots by checking that the error files do exist and have a size greater than zero
 if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	#find common snapshot on backup and storage servers
 	/bin/grep -F -x -f /tmp/back_snaps /tmp/store_snaps > /tmp/common_snaps
