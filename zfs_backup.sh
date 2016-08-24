@@ -112,7 +112,7 @@ if [ ! -z $common_snap ]; then
 	#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
 	#ouput of the zfs send and zfs receive commands is saved in temporary txt files to be sent to user
 	#save the exit status of the two sides of pipe in variables and add them for a exit status total`
-	/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs send -vI $store_pool_name/$store_filesystem_name@$common_snap $store_pool_name/$store_filesystem_name@$latest_snap 2> /tmp/zfs_send_tmp.txt\
+	/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs send -vI $store_pool_name/$store_fileshare_name@$common_snap $store_pool_name/$store_fileshare_name@$latest_snap 2> /tmp/zfs_send_tmp.txt\
 	| /sbin/zfs receive -vF $backup_pool_name/$store_backup_fileshare &> /tmp/zfs_receive_tmp.txt;\
 	pipe1=${PIPESTATUS[0]} pipe2=${PIPESTATUS[1]} 
 	total_err=$(($pipe1+$pipe2))
