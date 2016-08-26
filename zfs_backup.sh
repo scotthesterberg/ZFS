@@ -53,21 +53,21 @@ Mail(){
 
 #this function creates a list of the names of snapshots on the local zfs system
 #with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
-List_local_snapshots(){
+ListLocalSnapshots(){
 	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
 	snapshot_location=$1
 
 	/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
 }
 
-List_local_snapshots $backup_pool_name/$store_backup_fileshare
+ListLocalSnapshots $backup_pool_name/$store_backup_fileshare
 
 #store list of snapshots on remote server
 #/bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
 
 #this function creates a list of the names of snapshots on a remote zfs system
 #with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
-List_remote_snapshots(){
+ListRemoteSnapshots(){
 	#location of ssh key to used for authentication
 	ssh_key=$1
 	#user to authenticate as
@@ -87,34 +87,36 @@ List_remote_snapshots(){
 	/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
 }
 
-List_remote_snapshots $ssh_backup_key $user $store_server $store_pool_name/$store_fileshare_name
+ListRemoteSnapshots $ssh_backup_key $user $store_server $store_pool_name/$store_fileshare_name
 
 #find latest storage server snapshot
 #to be sent with all predecessors created since last backup to backup server
 latest_snap=$(tail -n 1 /tmp/store_snaps)
 
-#test to see if we were successful in listing snapshots by checking that the error files do exist and have a size greater than zero
-if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
-	#find common snapshot on backup and storage servers
-	/bin/grep -F -x -f /tmp/back_snaps /tmp/store_snaps > /tmp/common_snaps
-	#sort snapshots from previous command by date and add latest common snap to common_snap variable
-	common_snap=$(grep $(/bin/cat /tmp/common_snaps | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) /tmp/common_snaps)
-	#delete error files
-	/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/common_snaps
-else
-	#MAIL="ZFS list $store_server snapshots FAILED! Error:"
-	#/bin/printf "$MAIL \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
-	
-	zfs list output "$(/bin/cat /tmp/zfs_list_err)" \
-	| /bin/mail -s "ZFS list $store_server snapshots FAILED!" $email
-	
-	Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
-	zfs list output $(/bin/cat /tmp/zfs_list_err)" 
-	
-	#delete error files
-	/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/store_snaps /tmp/back_snaps
-	exit 1
-fi
+FindCommonSnapshots(){
+	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
+	if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
+		#find common snapshot on backup and storage servers
+		/bin/grep -F -x -f /tmp/back_snaps /tmp/store_snaps > /tmp/common_snaps
+		#sort snapshots from previous command by date and add latest common snap to common_snap variable
+		common_snap=$(grep $(/bin/cat /tmp/common_snaps | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) /tmp/common_snaps)
+		#delete error files
+		/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/common_snaps
+	else
+		#MAIL="ZFS list $store_server snapshots FAILED! Error:"
+		#/bin/printf "$MAIL \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
+		
+		zfs list output "$(/bin/cat /tmp/zfs_list_err)" \
+		| /bin/mail -s "ZFS list $store_server snapshots FAILED!" $email
+		
+		Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
+		zfs list output $(/bin/cat /tmp/zfs_list_err)" 
+		
+		#delete error files
+		/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/store_snaps /tmp/back_snaps
+		exit 1
+	fi
+}
 
 if [ ! -z $common_snap ]; then
 	#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
