@@ -94,62 +94,58 @@ ListRemoteSnapshots $ssh_backup_key $user $store_server $store_pool_name/$store_
 latest_snap=$(tail -n 1 /tmp/store_snaps)
 
 FindCommonSnapshots(){
+	local_snaps=$1
+	remote_snaps=$2
+	
 	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
-	if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
-		#find common snapshot on backup and storage servers
-		/bin/grep -F -x -f /tmp/back_snaps /tmp/store_snaps > /tmp/common_snaps
+	if [[ -n local_snaps && -n remote_snaps ]]; then
+		#find common snapshot on remote and local servers
+		common_snaps=$(echo ${local_snaps[@]} ${remote_snaps[@]} | tr ' ' '\n' | sort | uniq -d)
 		#sort snapshots from previous command by date and add latest common snap to common_snap variable
-		common_snap=$(grep $(/bin/cat /tmp/common_snaps | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) /tmp/common_snaps)
-		#delete error files
-		/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/common_snaps
+		common_snap=$(echo ${common_snaps[*]} | tr " " "\n" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1))
 	else
-		#MAIL="ZFS list $store_server snapshots FAILED! Error:"
-		#/bin/printf "$MAIL \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
-		
-		zfs list output "$(/bin/cat /tmp/zfs_list_err)" \
-		| /bin/mail -s "ZFS list $store_server snapshots FAILED!" $email
-		
-		Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
+		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
 		zfs list output $(/bin/cat /tmp/zfs_list_err)" 
 		
-		#delete error files
-		/bin/rm -f /tmp/ssh_std_err /tmp/zfs_list_err /tmp/store_snaps /tmp/back_snaps
-		exit 1
+		return 1
 	fi
 }
 
-if [ ! -z $common_snap ]; then
-	#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
-	#ouput of the zfs send and zfs receive commands is saved in temporary txt files to be sent to user
-	#save the exit status of the two sides of pipe in variables and add them for a exit status total
-	/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs send -vI $store_pool_name/$store_fileshare_name@$common_snap $store_pool_name/$store_fileshare_name@$latest_snap 2> /tmp/zfs_send_tmp.txt\
-	| /sbin/zfs receive -vF $backup_pool_name/$store_backup_fileshare &> /tmp/zfs_receive_tmp.txt;\
-	pipe1=${PIPESTATUS[0]} pipe2=${PIPESTATUS[1]} 
-	total_err=$(($pipe1+$pipe2))
-	#tests if zfs send worked successfully, if not send email with exit statuses
-	if [ $total_err -eq 0 ]; then
-		#MAIL="ZFS send backup SUCCEEDED! \n"
-		#printf "$MAIL \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | mail -s "ZFS send backup SUCCEEDED!" $email
+FindCommonSnapshots 
+SendSnapshots(){
+	if [ ! -z $common_snap ]; then
+		#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
+		#ouput of the zfs send and zfs receive commands is saved in temporary txt files to be sent to user
+		#save the exit status of the two sides of pipe in variables and add them for a exit status total
+		/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs send -vI $store_pool_name/$store_fileshare_name@$common_snap $store_pool_name/$store_fileshare_name@$latest_snap 2> /tmp/zfs_send_tmp.txt\
+		| /sbin/zfs receive -vF $backup_pool_name/$store_backup_fileshare &> /tmp/zfs_receive_tmp.txt;\
+		pipe1=${PIPESTATUS[0]} pipe2=${PIPESTATUS[1]} 
+		total_err=$(($pipe1+$pipe2))
+		#tests if zfs send worked successfully, if not send email with exit statuses
+		if [ $total_err -eq 0 ]; then
+			#MAIL="ZFS send backup SUCCEEDED! \n"
+			#printf "$MAIL \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | mail -s "ZFS send backup SUCCEEDED!" $email
+			
+			Mail "ZFS send backup SUCCEEDED"'!' "ZFS send backup SUCCEEDED! \n \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
+			
+			/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
+			exit 0
+	   else
+			#MAIL="ZFS send backup FAILED! Error:"
+			#/bin/printf "$MAIL \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | /bin/mail -s "ZFS send backup FAILED!" $email
+			
+			Mail "ZFS send backup FAILED"'!' "ZFS send backup FAILED! Error: \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
+			
+			/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
+			exit 2
+	   fi
+	else
+		#MAIL="ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
+		#/bin/printf "$MAIL \n " | /bin/mail -s "ZFS send backup FAILED with no common snapshots!" $email
 		
-		Mail "ZFS send backup SUCCEEDED"'!' "ZFS send backup SUCCEEDED! \n \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
+		Mail "ZFS send backup FAILED with no common snapshots"'!' "ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
 		
-		/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
-		exit 0
-   else
-        #MAIL="ZFS send backup FAILED! Error:"
-        #/bin/printf "$MAIL \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | /bin/mail -s "ZFS send backup FAILED!" $email
-        
-		Mail "ZFS send backup FAILED"'!' "ZFS send backup FAILED! Error: \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
-		
-		/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
-		exit 2
-   fi
-else
-    #MAIL="ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
-    #/bin/printf "$MAIL \n " | /bin/mail -s "ZFS send backup FAILED with no common snapshots!" $email
-	
-	Mail "ZFS send backup FAILED with no common snapshots"'!' "ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
-	
-	/bin/rm -f /tmp/store_snaps /tmp/back_snaps
-	exit 3
-fi
+		/bin/rm -f /tmp/store_snaps /tmp/back_snaps
+		exit 3
+	fi
+}
