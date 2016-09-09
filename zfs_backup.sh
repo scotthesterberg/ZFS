@@ -60,8 +60,6 @@ ListLocalSnapshots(){
 	/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
 }
 
-ListLocalSnapshots $backup_pool_name/$store_backup_fileshare
-
 #store list of snapshots on remote server
 #/bin/ssh -i $ssh_backup_key $store_server "~/cron_scripts/zfs_destroy_storage_snaps.sh && /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
 
@@ -84,14 +82,12 @@ ListRemoteSnapshots(){
 	#then run it and then clean up
 	#/bin/ssh -i $ssh_key $remote_server "/usr/bin/chown +x /tmp/zfs_destroy_storage_snaps.sh && ./tmp/zfs_destroy_storage_snaps.sh && rm -f /tmp/zfs_destroy_storage_snaps.sh"
 	
-	/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' > /tmp/store_snaps
+	remote_snaps=$(/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
+	
+	#find latest storage server snapshot
+	#to be sent with all predecessors created since last backup to backup server
+	latest_snap=$(echo $remote_snaps | tr " " "\n" | tail -n 1)
 }
-
-ListRemoteSnapshots $ssh_backup_key $user $store_server $store_pool_name/$store_fileshare_name
-
-#find latest storage server snapshot
-#to be sent with all predecessors created since last backup to backup server
-latest_snap=$(tail -n 1 /tmp/store_snaps)
 
 FindCommonSnapshots(){
 	local_snaps=$1
@@ -111,7 +107,6 @@ FindCommonSnapshots(){
 	fi
 }
 
-FindCommonSnapshots 
 SendSnapshots(){
 	if [ ! -z $common_snap ]; then
 		#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
