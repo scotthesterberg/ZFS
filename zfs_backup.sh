@@ -55,8 +55,13 @@ Mail(){
 #with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
 ListLocalSnapshots(){
 	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
-	snapshot_location=$1
-
+	if [ -z $1 ];
+		echo "Please provide location of snapshots in format of zfs_pool_name/zfs_filesystem_name"
+		exit 1
+	else
+		snapshot_location=$1
+	fi
+	
 	/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
 }
 
@@ -94,16 +99,21 @@ FindCommonSnapshots(){
 	remote_snaps=$2
 	
 	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
-	if [[ -n local_snaps && -n remote_snaps ]]; then
+	if [[ -z local_snaps && -z remote_snaps ]]; then
 		#find common snapshot on remote and local servers
 		common_snaps=$(echo ${local_snaps[@]} ${remote_snaps[@]} | tr ' ' '\n' | sort | uniq -d)
 		#sort snapshots from previous command by date and add latest common snap to common_snap variable
 		common_snap=$(echo ${common_snaps[*]} | tr " " "\n" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1))
+		
+		RETVAL=$common_snap
 	else
 		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
 		zfs list output $(/bin/cat /tmp/zfs_list_err)" 
 		
-		return 1
+		echo "Finding common snapshots becuase the list of common local snapshots or remote snapshots was empty."
+		echo -e "Local snapshots: \n" "$local_snaps"
+		echo -e "Remote snapshots: \n" "$remote_snaps"
+		exit 1
 	fi
 }
 
