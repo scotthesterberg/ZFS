@@ -40,9 +40,9 @@
 #function for sending email
 Mail(){
 	#first argument should be subject of email
-	subject=$1
+	local subject=$1
 	#second argument should be body of email
-	body=$2
+	local body=$2
 
 	printf "$body" | mail -s "$subject" $email
 }
@@ -57,12 +57,19 @@ ListLocalSnapshots(){
 	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
 	if [ -z $1 ];
 		echo "Please provide location of snapshots in format of zfs_pool_name/zfs_filesystem_name"
-		exit 1
+		return 1
 	else
-		snapshot_location=$1
+		local snapshot_location=$1
 	fi
 	
 	/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r > /tmp/back_snaps
+	
+	if [ ! -s /tmp/zfs_list_err ]; then
+		echo "Recieved error from zfs list, perhaps $snapshot_location does not exist"
+		echo -e "Error recieved: \n"
+		cat /tmp/zfs_list_err
+		return 1
+	fi
 }
 
 #store list of snapshots on remote server
@@ -72,13 +79,13 @@ ListLocalSnapshots(){
 #with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
 ListRemoteSnapshots(){
 	#location of ssh key to used for authentication
-	ssh_key=$1
+	local ssh_key=$1
 	#user to authenticate as
-	user=$2
+	local user=$2
 	#ip or dns of remote server
-	remote_server=$3
+	local remote_server=$3
 	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
-	snapshot_location=$4
+	local snapshot_location=$4
 	
 	#if we still want to delete zero byte snapshots before creating our list of remote snapshots we need to make something like the below work
 	#~/cron_scripts/zfs_destroy_storage_snaps.sh
@@ -87,33 +94,45 @@ ListRemoteSnapshots(){
 	#then run it and then clean up
 	#/bin/ssh -i $ssh_key $remote_server "/usr/bin/chown +x /tmp/zfs_destroy_storage_snaps.sh && ./tmp/zfs_destroy_storage_snaps.sh && rm -f /tmp/zfs_destroy_storage_snaps.sh"
 	
-	remote_snaps=$(/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
+	local remote_snaps=$(/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
+	
+	RETVAL=$remote_snaps
+}
+
+LatestRemoteSnap(){
+	local remote_snaps=$1
 	
 	#find latest storage server snapshot
 	#to be sent with all predecessors created since last backup to backup server
-	latest_snap=$(echo $remote_snaps | tr " " "\n" | tail -n 1)
+	local latest_snap=$(echo $remote_snaps | tr " " "\n" | tail -n 1)
+	
+	RETVAL=$latest_snap
 }
 
-FindCommonSnapshots(){
-	local_snaps=$1
-	remote_snaps=$2
+FindCommonSnapshot(){
+	local local_snaps=$1
+	local remote_snaps=$2
 	
 	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
 	if [[ -z local_snaps && -z remote_snaps ]]; then
 		#find common snapshot on remote and local servers
-		common_snaps=$(echo ${local_snaps[@]} ${remote_snaps[@]} | tr ' ' '\n' | sort | uniq -d)
-		#sort snapshots from previous command by date and add latest common snap to common_snap variable
-		common_snap=$(echo ${common_snaps[*]} | tr " " "\n" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1))
-		
-		RETVAL=$common_snap
+		local common_snaps=$(echo ${local_snaps[@]} ${remote_snaps[@]} | tr ' ' '\n' | sort | uniq -d)
+		if [[ -z common_snaps ]]; then
+			echo "Failed to find common snapshot. This is bad as it means an incremental backup cannot be performed."
+			echo "Please transfer a new common snapshot."
+			return 2
+		else
+			#sort snapshots from previous command by date and add latest common snap to common_snap variable
+			local common_snap=$(echo ${common_snaps[*]} | tr " " "\n" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1))
+			
+			RETVAL=$common_snap
 	else
 		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
 		zfs list output $(/bin/cat /tmp/zfs_list_err)" 
-		
-		echo "Finding common snapshots becuase the list of common local snapshots or remote snapshots was empty."
+		echo "Failed to find common snapshot because the list of common local snapshots or remote snapshots was empty."
 		echo -e "Local snapshots: \n" "$local_snaps"
 		echo -e "Remote snapshots: \n" "$remote_snaps"
-		exit 1
+		return 1
 	fi
 }
 
@@ -134,7 +153,7 @@ SendSnapshots(){
 			Mail "ZFS send backup SUCCEEDED"'!' "ZFS send backup SUCCEEDED! \n \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
 			
 			/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
-			exit 0
+			return 0
 	   else
 			#MAIL="ZFS send backup FAILED! Error:"
 			#/bin/printf "$MAIL \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | /bin/mail -s "ZFS send backup FAILED!" $email
@@ -142,7 +161,7 @@ SendSnapshots(){
 			Mail "ZFS send backup FAILED"'!' "ZFS send backup FAILED! Error: \n pipe: $pipe1\n pipe2: $pipe2\n\n Send output:\n $( /bin/cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)"
 			
 			/bin/rm -f /tmp/zfs_receive_tmp.txt /tmp/zfs_send_tmp.txt
-			exit 2
+			return 2
 	   fi
 	else
 		#MAIL="ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
@@ -151,6 +170,6 @@ SendSnapshots(){
 		Mail "ZFS send backup FAILED with no common snapshots"'!' "ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
 		
 		/bin/rm -f /tmp/store_snaps /tmp/back_snaps
-		exit 3
+		return 3
 	fi
 }
