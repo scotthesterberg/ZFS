@@ -55,7 +55,7 @@ Mail(){
 #with the names formatted so that only the portion after the @sign that makes up the standard zfs naming scheme is returned
 ListLocalSnapshots(){
 	#location of snapshots in format of "zfs_pool_name/zfs_filesystem_name"
-	if [ -z $1 ];
+	if [ -z $1 ]; then
 		echo "Please provide location of snapshots in format of zfs_pool_name/zfs_filesystem_name"
 		return 1
 	else
