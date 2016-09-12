@@ -126,6 +126,7 @@ FindCommonSnapshot(){
 			local common_snap=$(echo ${common_snaps[*]} | tr " " "\n" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1))
 			
 			RETVAL=$common_snap
+		fi
 	else
 		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
 		zfs list output $(/bin/cat /tmp/zfs_list_err)" 
