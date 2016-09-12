@@ -128,8 +128,7 @@ FindCommonSnapshot(){
 			RETVAL=$common_snap
 		fi
 	else
-		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\
-		zfs list output $(/bin/cat /tmp/zfs_list_err)" 
+		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\ zfs list output $(/bin/cat /tmp/zfs_list_err)" 
 		echo "Failed to find common snapshot because the list of common local snapshots or remote snapshots was empty."
 		echo -e "Local snapshots: \n" "$local_snaps"
 		echo -e "Remote snapshots: \n" "$remote_snaps"
