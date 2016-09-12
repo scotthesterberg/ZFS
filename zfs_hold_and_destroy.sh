@@ -51,10 +51,10 @@ new_holds=""
 
 
 #store list of snapshots on backup server
-/sbin/zfs list -Hr -t snap $backup_pool_name/$store_fileshare_name | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/back_snaps
+/sbin/zfs list -Hr -t snap $backup_pool_name/$store_backup_fileshare | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/back_snaps
 
 #store list of snapshots on storage server
-/bin/ssh -i ~/.ssh/id_rsa_backup $store_server /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name 2> ~/ssh_std_err | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/store_snaps
+/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs list -Hr -t snap $store_pool_name/$store_fileshare_name 2> ~/ssh_std_err | /bin/awk '{print $1}' | awk -F / '{print $2}' > /tmp/store_snaps
 
 last_back_snap="${back_snaps[1]}"
 
@@ -77,11 +77,11 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	/bin/sed -e "0,/$last_common/d" -e "/hourly/d" /tmp/store_snaps > /tmp/uncommon_snaps
 	
 	#create list of local snapshots with holds
-	/sbin/zfs list -H -r -d 1 -t snapshot -o name $backup_pool_name/$store_fileshare_name | xargs -n1 zfs holds -H | grep $hold_tag | awk '{print $1}' | awk -F / '{print $2}' > /tmp/local_snap_holds
+	/sbin/zfs list -H -r -d 1 -t snapshot -o name $backup_pool_name/$store_backup_fileshare | xargs -n1 zfs holds -H | grep $hold_tag | awk '{print $1}' | awk -F / '{print $2}' > /tmp/local_snap_holds
 	esc=$?
 	
 	#create list of remote snapshots with holds
-	/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "/sbin/zfs list -H -r -d 1 -t snapshot -o name $store_pool_name/$store_fileshare_name | xargs -n1 zfs holds -H "| grep $hold_tag | awk '{print $1}' | awk -F / '{print $2}' > /tmp/remote_snap_holds
+	/bin/ssh -i $ssh_backup_key $store_server "/sbin/zfs list -H -r -d 1 -t snapshot -o name $store_pool_name/$store_fileshare_name | xargs -n1 zfs holds -H "| grep $hold_tag | awk '{print $1}' | awk -F / '{print $2}' > /tmp/remote_snap_holds
 	esc=$(expr $esc + $?)
 	
 	#create list of common snapshots that do no already have holds on them
@@ -93,7 +93,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	uncommon_snaps=$(grep -F -x -v -f /tmp/remote_snap_holds /tmp/uncommon_snaps)
 	if [[ ! -z $common_snaps_remote && ! -z $uncommon_snaps ]]; then
 		#add holds to snaps that are common, or that have been created after the last common snap on remote server
-		/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "for snap in "$common_snaps_remote" "$uncommon_snaps"; do /sbin/zfs hold $hold_tag '$store_pool_name/'\$snap; done"
+		/bin/ssh -i $ssh_backup_key $store_server "for snap in "$common_snaps_remote" "$uncommon_snaps"; do /sbin/zfs hold $hold_tag '$store_pool_name/'\$snap; done"
 		esc=$(expr $esc + $?)
 	fi
 	
@@ -109,7 +109,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	release_snap_holds_remote=$(grep -F -x -v -f /tmp/uncommon_snaps /tmp/release_snap_holds)
 	if [[ ! -z $release_snap_holds_remote ]]; then
 		#release holds on remote snaps that are not common
-		/bin/ssh -i ~/.ssh/id_rsa_backup $store_server "for snap in "$release_snap_holds_remote"; do /sbin/zfs release $hold_tag '$store_pool_name/'\$snap; done"
+		/bin/ssh -i $ssh_backup_key $store_server "for snap in "$release_snap_holds_remote"; do /sbin/zfs release $hold_tag '$store_pool_name/'\$snap; done"
 		esc=$(expr $esc + $?)
 	fi
 	
@@ -127,7 +127,7 @@ if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	#check to see if our manipulation of snap holds went well
 	if [ $esc = 0 ]; then
 		#delete old snapshots from storage server
-		deleted_remote="$deleted_remote \n$(ssh -i ~/.ssh/id_rsa_backup $store_server "for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done")"
+		deleted_remote="$deleted_remote \n$(ssh -i $ssh_backup_key $store_server "for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done")"
 		deleted_local="$deleted_local \n$(for snapType in hourly- daily- weekly- monthly- yearly-; do /usr/local/sbin/zfsnap destroy -v -r -p \$(/bin/hostname -s)-\$snapType -F $snap_life $store_pool_name/$store_fileshare_name ; done)"
 		#send email
 		MAIL="ZFS snapshots on $(/bin/hostname) and $store_server deleted! \n"
