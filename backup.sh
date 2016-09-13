@@ -39,7 +39,7 @@ echo "Latest remote snapshot:"
 echo "${RETVAL[*]}"
 echo
 
-FindCommonSnapshot $local_snaps $remote_snaps 
+FindCommonSnapshot "${local_snaps[*]}" "${remote_snaps[*]}" 
 
 echo "Latest common snapshot:"
 echo "${RETVAL[*]}"
