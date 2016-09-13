@@ -17,6 +17,7 @@
 #execute zfs_backup functions to go into core
 
 source ~/variables.txt
+source ./zfs_backup.sh
 
 ListLocalSnapshots $backup_pool_name/$store_backup_fileshare
 
