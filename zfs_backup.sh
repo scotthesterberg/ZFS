@@ -115,24 +115,24 @@ FindCommonSnapshot(){
 	local remote_snaps=$2
 	
 	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
-	if [[ -z $local_snaps && -z $remote_snaps ]]; then
+	if [[ -n $local_snaps && -n $remote_snaps ]]; then
 		#find common snapshot on remote and local servers
 		local common_snaps=$(echo "${local_snaps[@]}" "${remote_snaps[@]}" | sort | uniq -d)
-		if [[ -z $common_snaps ]]; then
-			echo "Failed to find common snapshot. This is bad as it means an incremental backup cannot be performed."
-			echo "Please transfer a new common snapshot."
-			return 2
-		else
+		if [[ -n $common_snaps ]]; then
 			#sort snapshots from previous command by date and add latest common snap to common_snap variable
 			local common_snap=$(echo "${common_snaps[*]}" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /usr/bin/tail -n 1) | /usr/bin/tail -n 1)
 			
 			RETVAL=$common_snap
+		else
+			echo "Failed to find common snapshot. This is bad as it means an incremental backup cannot be performed."
+			echo "Please transfer a new common snapshot."
+			return 2
 		fi
 	else
 		#Mail "ZFS list $store_server snapshots FAILED"'!' "ZFS list $store_server snapshots FAILED! Error: \n ssh output:\n $( /bin/cat /tmp/ssh_std_err) \n\ zfs list output $(/bin/cat /tmp/zfs_list_err)" 
 		echo "Failed to find common snapshot because the list of common local snapshots or remote snapshots was empty."
-		echo -e "Local snapshots: \n" "$local_snaps"
-		echo -e "Remote snapshots: \n" "$remote_snaps"
+		echo -e "Local snapshots: \n" "${local_snaps[@]}"
+		echo -e "Remote snapshots: \n" "${remote_snaps[@]}"
 		return 1
 	fi
 }
