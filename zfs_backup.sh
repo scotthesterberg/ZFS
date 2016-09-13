@@ -62,7 +62,7 @@ ListLocalSnapshots(){
 		local snapshot_location=$1
 	fi
 	
-	local local_snaps=$(/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}' | /bin/sort -r)
+	local local_snaps=$(/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
 	
 	RETVAL=$local_snaps
 	if [ -s /tmp/zfs_list_err ]; then
