@@ -100,11 +100,11 @@ ListRemoteSnapshots(){
 }
 
 LatestRemoteSnap(){
-	local remote_snaps=$1
+	local remote_snaps=("$@")
 	
 	#find latest storage server snapshot
 	#to be sent with all predecessors created since last backup to backup server
-	local latest_snap=$(echo $remote_snaps | tr " " "\n" | tail -n 1)
+	local latest_snap=$(echo "$remote_snaps" | tr " " "\n" | tail -n 1)
 	
 	RETVAL=$latest_snap
 }
