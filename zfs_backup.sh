@@ -105,7 +105,7 @@ LatestRemoteSnap(){
 	
 	#find latest storage server snapshot
 	#to be sent with all predecessors created since last backup to backup server
-	local latest_snap=$(echo "$remote_snaps" | tr " " "\n" | tail -n 1)
+	local latest_snap=$(echo "$remote_snaps" | grep $(echo ${remote_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) | /bin/tail -n 1 tail -n 1)
 	
 	RETVAL=$latest_snap
 }
@@ -124,7 +124,7 @@ FindCommonSnapshot(){
 			return 2
 		else
 			#sort snapshots from previous command by date and add latest common snap to common_snap variable
-			local common_snap=$(echo ${common_snaps[*]} | tr " " "\n" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) | /bin/tail -n 1)
+			local common_snap=$(echo "${common_snaps[*]}" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) | /bin/tail -n 1)
 			
 			RETVAL=$common_snap
 		fi
