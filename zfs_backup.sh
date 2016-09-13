@@ -115,10 +115,10 @@ FindCommonSnapshot(){
 	local remote_snaps=$2
 	
 	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
-	if [[ -z local_snaps && -z remote_snaps ]]; then
+	if [[ -z $local_snaps && -z $remote_snaps ]]; then
 		#find common snapshot on remote and local servers
 		local common_snaps=$(echo "${local_snaps[@]}" "${remote_snaps[@]}" | sort | uniq -d)
-		if [[ -z common_snaps ]]; then
+		if [[ -z $common_snaps ]]; then
 			echo "Failed to find common snapshot. This is bad as it means an incremental backup cannot be performed."
 			echo "Please transfer a new common snapshot."
 			return 2
