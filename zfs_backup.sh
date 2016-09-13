@@ -105,7 +105,7 @@ LatestRemoteSnap(){
 	
 	#find latest storage server snapshot
 	#to be sent with all predecessors created since last backup to backup server
-	local latest_snap=$(echo "$remote_snaps" | grep $(echo ${remote_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /usr/bin/tail -n 1) | /usr/bin/tail -n 1 tail -n 1)
+	local latest_snap=$(echo "$remote_snaps" | grep $(echo ${remote_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /usr/bin/tail -n 1) | /usr/bin/tail -n 1 )
 	
 	RETVAL=$latest_snap
 }
