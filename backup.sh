@@ -45,4 +45,4 @@ echo "Latest common snapshot:"
 echo "${RETVAL[*]}"
 echo
 
-#SendSnapshots $common_snap $latest_snap
+SendSnapshots $ssh_backup_key $user $store_server $store_pool_name/$store_fileshare_name $backup_pool_name/$store_backup_fileshare $common_snap $latest_snap
