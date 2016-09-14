@@ -64,12 +64,14 @@ ListLocalSnapshots(){
 	
 	local local_snaps=$(/sbin/zfs list -Hr -t snap $snapshot_location 2> /tmp/zfs_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
 	
-	RETVAL=$local_snaps
 	if [ -s /tmp/zfs_list_err ]; then
 		echo "Recieved error from zfs list, perhaps $snapshot_location does not exist"
 		echo -e "Error recieved: \n"
 		cat /tmp/zfs_list_err
+		rm /tmp/zfs_list_err
 		return 1
+	else
+		RETVAL=$local_snaps
 	fi
 }
 
@@ -95,9 +97,17 @@ ListRemoteSnapshots(){
 	#then run it and then clean up
 	#/bin/ssh -i $ssh_key $remote_server "/usr/bin/chown +x /tmp/zfs_destroy_storage_snaps.sh && ./tmp/zfs_destroy_storage_snaps.sh && rm -f /tmp/zfs_destroy_storage_snaps.sh"
 	
-	local remote_snaps=$(/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_std_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
+	local remote_snaps=$(/bin/ssh -i $ssh_key $user@$remote_server "/sbin/zfs list -Hr -t snap $snapshot_location " 2> /tmp/ssh_list_err | /bin/awk '{print $1}' | /bin/awk -F @ '{print $2}')
 	
-	RETVAL=$remote_snaps
+	if [ -s /tmp/zfs_list_err ]; then
+		echo "Recieved error from zfs list, perhaps $snapshot_location does not exist"
+		echo -e "Error recieved: \n"
+		cat /tmp/zfs_list_err
+		rm /tmp/zfs_list_err
+		return 1
+	else
+		RETVAL=$remote_snaps
+	fi
 }
 
 LatestRemoteSnap(){
