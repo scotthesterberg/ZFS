@@ -38,11 +38,13 @@ LatestRemoteSnap "${remote_snaps[*]}"
 echo "Latest remote snapshot:"
 echo "${RETVAL[*]}"
 echo
+latest_snap="${RETVAL[*]}"
 
 FindCommonSnapshot "${local_snaps[*]}" "${remote_snaps[*]}" 
 
 echo "Latest common snapshot:"
 echo "${RETVAL[*]}"
 echo
+common_snap="${RETVAL[*]}"
 
 SendSnapshots $ssh_backup_key $user $store_server $store_pool_name/$store_fileshare_name $backup_pool_name/$store_backup_fileshare $common_snap $latest_snap
