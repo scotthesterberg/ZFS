@@ -117,10 +117,10 @@ FindCommonSnapshot(){
 	#test to see if we were successful in listing snapshots by checking that the error files don't exist and have a size greater than zero
 	if [[ -n $local_snaps && -n $remote_snaps ]]; then
 		#find common snapshot on remote and local servers
-		local common_snaps=$(echo "${local_snaps[@]}" "${remote_snaps[@]}" | sort | uniq -d)
+		local common_snaps=$(echo -e "${local_snaps[@]}" "\n" "${remote_snaps[@]}" | sort | uniq -d)
 		if [[ -n $common_snaps ]]; then
 			#sort snapshots from previous command by date and add latest common snap to common_snap variable
-			local common_snap=$(echo "${common_snaps[*]}" | grep $(echo ${common_snaps[*]} | tr " " "\n" | /bin/cut -d "-" -f4-6 | /bin/sort | /usr/bin/tail -n 1) | /usr/bin/tail -n 1)
+			local common_snap=$(echo "${common_snaps[*]}" | grep $(echo "${common_snaps[*]}" | /bin/cut -d "-" -f4-6 | /bin/sort | /usr/bin/tail -n 1))
 			
 			RETVAL=$common_snap
 		else
