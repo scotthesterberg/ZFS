@@ -128,6 +128,8 @@ FindCommonSnapshot(){
 	if [[ -n $local_snaps && -n $remote_snaps ]]; then
 		#find common snapshot on remote and local servers
 		local common_snaps=$(echo -e "${remote_snaps[*]}" "\n" "${local_snaps[*]}" | sort | uniq -d)
+		#the below would work better than the above but does not work in the sh shell
+		#local common_snaps=$(comm -12 <(echo -e "${local_snaps[*]}"| sort) <(echo -e "${remote_snaps[*]}"| sort))
 		if [[ -n $common_snaps ]]; then
 			#sort snapshots from previous command by date and add latest common snap to common_snap variable
 			local common_snap=$(echo "${common_snaps[*]}" | grep $(echo "${common_snaps[*]}" | /bin/cut -d "-" -f4-6 | /bin/sort | /usr/bin/tail -n 1))
