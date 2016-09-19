@@ -43,7 +43,7 @@ while [ -n "$1" ]; do
             d) echo "destination $OPTARG";;
             e) echo "email $OPTARG";;
             f) echo "remote ip $OPTARG";;
-            h) Help;;PREFIX=$OPTARG; PREFIXES="${PREFIXES:+$PREFIXES }$PREFIX";;
+            h) Help;;
             k) echo "ssh key $OPTARG";;
             n) echo "dry run";;
             R) echo "reverse zfs send";;
