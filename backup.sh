@@ -31,13 +31,13 @@ LINKS:
   bug tracking:     https://github.com/zfsnap/zfsnap/issues
 
 EOF
-    Exit 0
+    #Exit 0
 }
 
 # main loop; get options, process snapshot expiration/deletion
 while [ -n "$1" ]; do
     OPTIND=1
-    while getopts e:f:hk:l:nrRsSvz OPT; do
+    while getopts b:d:e:f:hk:nRsSv OPT; do
         case "$OPT" in
             b) echo "source $OPTARG";;
             d) echo "destination $OPTARG";;
