@@ -59,12 +59,13 @@ while [ -n "$1" ]; do
     # discard all arguments processed thus far
     shift $(($OPTIND - 1))
 
+done
 #check to see that required arguments have been provided
-if ! $fflag || ! $lflag || ! $rflag
-then
-    echo "-r, -f, -l must be included" >&2
-    exit 1
-fi
+#if ! $fflag || ! $lflag || ! $rflag
+#then
+#    echo "-r, -f, -l must be included" >&2
+#    exit 1
+#fi
 
 
 
