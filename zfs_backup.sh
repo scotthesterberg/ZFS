@@ -52,7 +52,14 @@ latest_snap=$(tail -n 1 /tmp/store_snaps)
 #test to see if we were successful in listing snapshots
 if [[ ! -s /tmp/ssh_std_err && ! -s /tmp/zfs_list_err ]]; then
 	#find common snapshot on backup and storage servers
+	
 	/bin/grep -F -x -f /tmp/back_snaps /tmp/store_snaps > /tmp/common_snaps
+	if [[ ! -s /tmp/common_snaps ]]; then
+		MAIL="ZFS send backup FAILED due to no common snapshot! \n This is bad, with no common snapshots you cannot send incremental snapshots. \n Last backed up snapshot $backup_pool_name/$(tail -n 1 /tmp/back_snaps)\n Oldest storage snapshot $store_pool_name/$(tail -n 1 /tmp/store_snaps)"
+    	 	/bin/printf "$MAIL \n " | /bin/mail -s "ZFS send backup FAILED with no common snapshots!" $email
+        	/bin/rm -f /tmp/store_snaps /tmp/back_snaps
+        	exit 3	
+	fi
 	#sort snapshots from previous command by date and add latest common snap to common_snap variable
 	common_snap=$(grep $(/bin/cat /tmp/common_snaps | /bin/cut -d "-" -f4-6 | /bin/sort | /bin/tail -n 1) /tmp/common_snaps)
 	#delete error files
@@ -71,11 +78,13 @@ if [ ! -z $common_snap ]; then
 	#this sends the incrementals of all snapshots created since the last snapshot send to the backup server
 	#ouput of the zfs send and zfs receive commands is saved in temporary txt files to be sent to user
 	#save the exit status of the two sides of pipe in variables and add them for a exit status total`
+
 	/bin/ssh -i $ssh_backup_key $store_server /sbin/zfs send -vI $store_pool_name/$store_fileshare_name@$common_snap $store_pool_name/$store_fileshare_name@$latest_snap 2> /tmp/zfs_send_tmp.txt\
 	| /sbin/zfs receive -vF $backup_pool_name/$store_backup_fileshare &> /tmp/zfs_receive_tmp.txt;\
 	pipe1=${PIPESTATUS[0]} pipe2=${PIPESTATUS[1]} 
 	total_err=$(($pipe1+$pipe2))
 	#tests if zfs send worked successfully, if not send email with exit statuses
+
 	if [ $total_err -eq 0 ]; then
 		#MAIL="ZFS send backup SUCCEEDED! \n"
 		#printf "$MAIL \n Send output:\n $( cat /tmp/zfs_send_tmp.txt) \n\n\n Receive output:\n $(cat /tmp/zfs_receive_tmp.txt)" | mail -s "ZFS send backup SUCCEEDED!" $email
