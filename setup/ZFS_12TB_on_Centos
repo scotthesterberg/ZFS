@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# pool_name=Pool_capacityhere_spindiskspeedhere
+pool_name=Pool_12TB_7k2
+
+# Find the id of the disks, this is a more reliable way to create zfs pools as it is robust to port and motherboard changes
+ls -lah /dev/disk/by-id/
+
+# Create the zfs pool
+# mirror in this case as we are only using 2 disks
+zpool create -o ashift=12 $pool_name mirror scsi-SATA_HGST_HUH721212AL_8CHMRUWE scsi-SATA_HGST_HUH721212AL_8CHPRH3E 
+
+zfs snapshot -r Pool_3TB_7k2@moving
+zfs send -R Pool_3TB_7k2@moving | zfs receive -F Pool_12TB_7k2
